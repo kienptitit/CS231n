@@ -340,8 +340,16 @@ def lstm_step_forward(x, prev_h, prev_c, Wx, Wh, b):
     #############################################################################
     # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-    pass
+    tmp = np.split(x @ Wx + prev_h @ Wh + b,4,axis = 1)
 
+    i,f,o = sigmoid(tmp[0]),sigmoid(tmp[1]),sigmoid(tmp[2])
+
+    g = np.tanh(tmp[3])
+    
+    next_c = prev_c * f + i * g
+    next_h = o * np.tanh(next_c)
+
+    cache = x,prev_c,prev_h,i,f,o,g,next_h,next_c,Wx,Wh,tmp
     # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
     ##############################################################################
     #                               END OF YOUR CODE                             #
@@ -375,8 +383,26 @@ def lstm_step_backward(dnext_h, dnext_c, cache):
     #############################################################################
     # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-    pass
+    x,prev_c,prev_h,i,f,o,g,next_h,next_c,Wx,Wh,tmp = cache
+    
 
+    dnext_c = dnext_c + dnext_h * o * (1 - np.tanh(next_c) ** 2)
+
+    df = dnext_c * prev_c
+    di = dnext_c * g
+    dg = dnext_c * i
+    do = dnext_h * np.tanh(next_c)
+
+    dprev_c =  dnext_c * f
+    d_tmp = di  * (sigmoid(tmp[0])) * (1-sigmoid(tmp[0])),(df  * (sigmoid(tmp[1])) * (1-sigmoid(tmp[1]))),(do  * (sigmoid(tmp[2])) * (1-sigmoid(tmp[2]))),(dg * (1 - np.tanh(tmp[3]) ** 2))
+    d_tmp = np.concatenate(list(d_tmp),axis = 1)
+
+    dWx = x.T @ d_tmp
+    dWh = prev_h.T @ d_tmp
+    dprev_h = d_tmp @ Wh.T
+    db = np.sum(d_tmp,axis = 0)
+    
+    dx = d_tmp @ Wx.T
     # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
     ##############################################################################
     #                               END OF YOUR CODE                             #
@@ -414,8 +440,17 @@ def lstm_forward(x, h0, Wx, Wh, b):
     #############################################################################
     # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-    pass
+    _,t,_ = x.shape
+    c = np.zeros_like(h0)
+    h = h0.copy()
+    h_list = []
+    cache = []
+    for i in range(t):
+        h,c,cache_ = lstm_step_forward(x[:,i,:],h,c,Wx,Wh,b)
+        cache.append(cache_)
+        h_list.append(h[:,None,:])
 
+    h = np.concatenate(h_list,axis = 1)
     # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
     ##############################################################################
     #                               END OF YOUR CODE                             #
@@ -444,8 +479,28 @@ def lstm_backward(dh, cache):
     # You should use the lstm_step_backward function that you just defined.     #
     #############################################################################
     # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
+    _,t,_ = dh.shape
+    
+    dc = np.zeros_like(dh)[:,0,:]
+    dx = []
+    dWx = 0.0
+    dWh = 0.0
+    db = 0.0
+    dh_tmp = np.zeros_like(dc)
+    for i in range(t-1,-1,-1):
+        
+        x, dh_tmp, dc, d_Wx, d_Wh, d_b = lstm_step_backward(dh[:,i,:] + dh_tmp,dc,cache[i])
+        
+        # dh[:,i-1,:] = dh[:,i-1,:] +  dh_tmp
 
-    pass
+        dWx += d_Wx
+        dWh += d_Wh
+        db  += d_b
+        dx.append(x[:,None,:])
+    
+        
+    dh0 = dh_tmp
+    dx = np.concatenate(dx[::-1],axis = 1)
 
     # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
     ##############################################################################
@@ -547,3 +602,4 @@ def temporal_softmax_loss(x, y, mask, verbose=False):
     dx = dx_flat.reshape(N, T, V)
 
     return loss, dx
+
