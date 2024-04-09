@@ -154,15 +154,22 @@ class CaptioningRNN:
 
         word_embedding = word_embedding[:,:-1,:]
         
-
-        h,cache_rnn = rnn_forward(word_embedding,h0,self.params['Wx'],self.params['Wh'],self.params['b'])
+        forward_fuc = rnn_forward if self.cell_type == 'rnn' else lstm_forward
+        
+        h,cache_rnn = forward_fuc(word_embedding,h0,self.params['Wx'],self.params['Wh'],self.params['b'])
+        
 
         time_step_scores,cache_time_step= temporal_affine_forward(h,self.params['W_vocab'],self.params['b_vocab'])
 
         loss,dx = temporal_softmax_loss(time_step_scores, captions_out, mask, verbose=False)
 
         d_timestep,dW_vocab,db_vocab = temporal_affine_backward(dx,cache_time_step)
-        d_words, dh0, dWx, dWh, db = rnn_backward(d_timestep,cache_rnn)
+        
+        backward_func = rnn_backward if self.cell_type == 'rnn' else lstm_backward
+    
+        d_words, dh0, dWx, dWh, db = backward_func(d_timestep,cache_rnn)
+        
+           
 
         d_embed = word_embedding_backward(d_words,cache_embedding)
         

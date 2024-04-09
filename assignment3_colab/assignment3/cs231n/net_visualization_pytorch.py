@@ -34,8 +34,10 @@ def compute_saliency_maps(X, y, model):
     ##############################################################################
     # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-    pass
-
+    scores = model(X) # [N,C]
+    correct_score = torch.gather(scores,index = y.unsqueeze(1), dim = 1).sum()
+    correct_score.backward()
+    saliency = X.grad.abs().sum(dim = 1)
     # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
     ##############################################################################
     #                             END OF YOUR CODE                               #
@@ -76,7 +78,32 @@ def make_fooling_image(X, target_y, model):
     ##############################################################################
     # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-    pass
+    learning_rate = 1
+    num_iterations = 100
+
+    for _ in range(num_iterations):
+        # Forward pass to get the scores
+        scores = model(X_fooling)
+        
+        if scores.argmax().squeeze().item() == target_y:
+           break
+
+        target_score = scores[:, target_y]
+        
+        
+        target_score.backward()
+        
+        
+        grad = X_fooling.grad
+        dx = learning_rate * grad / torch.linalg.norm(grad)
+        X_fooling.data += dx
+        
+        
+        X_fooling.grad.zero_()
+
+    return X_fooling
+
+       
 
     # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
     ##############################################################################
@@ -93,8 +120,13 @@ def class_visualization_update_step(img, model, target_y, l2_reg, learning_rate)
     # Be very careful about the signs of elements in your code.            #
     ########################################################################
     # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
+    pred_y = model(img)
 
-    pass
+    loss = pred_y[0, target_y] - l2_reg * img.square().sum()
+    loss.backward()
+    
+    img.data += learning_rate * img.grad / img.grad.norm()
+    img.grad.zero_()
 
     # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
     ########################################################################

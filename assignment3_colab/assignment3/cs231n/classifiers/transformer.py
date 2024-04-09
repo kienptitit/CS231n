@@ -231,4 +231,3 @@ class TransformerDecoder(nn.Module):
             output = mod(output, memory, tgt_mask=tgt_mask)
 
         return output
-

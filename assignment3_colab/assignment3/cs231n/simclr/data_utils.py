@@ -20,13 +20,16 @@ def compute_train_transform(seed=123456):
         # TODO: Start of your code.                                                  #
         #                                                                            #
         # Hint: Check out transformation functions defined in torchvision.transforms #
-        # The first operation is filled out for you as an example.
+        # The first operation is filled out for you as an example.                   #
         ##############################################################################
         # Step 1: Randomly resize and crop to 32x32.
         transforms.RandomResizedCrop(32),
         # Step 2: Horizontally flip the image with probability 0.5
-        # Step 3: With a probability of 0.8, apply color jitter (you can use "color_jitter" defined above.
+        transforms.RandomHorizontalFlip(p=0.5),
+        # Step 3: With a probability of 0.8, apply color jitter
+        transforms.RandomApply([color_jitter], p=0.8),
         # Step 4: With a probability of 0.2, convert the image to grayscale
+        transforms.RandomGrayscale(p=0.2),        
         ##############################################################################
         #                               END OF YOUR CODE                             #
         ##############################################################################
@@ -52,6 +55,7 @@ class CIFAR10Pair(CIFAR10):
         x_j = None
 
         if self.transform is not None:
+           x_i,x_j = self.transform(img),self.transform(img)
             ##############################################################################
             # TODO: Start of your code.                                                  #
             #                                                                            #
@@ -60,7 +64,8 @@ class CIFAR10Pair(CIFAR10):
             ##############################################################################
             #                               END OF YOUR CODE                             #
             ##############################################################################
-
+        
+        
         if self.target_transform is not None:
             target = self.target_transform(target)
 
