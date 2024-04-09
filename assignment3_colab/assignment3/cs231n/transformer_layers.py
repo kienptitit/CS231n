@@ -18,32 +18,23 @@ class PositionalEncoding(nn.Module):
         Construct the PositionalEncoding layer.
 
         Inputs:
-         - embed_dim: the size of the embed dimension
-         - dropout: the dropout value
-         - max_len: the maximum possible length of the incoming sequence
+        - embed_dim: the size of the embed dimension
+        - dropout: the dropout value
+        - max_len: the maximum possible length of the incoming sequence
         """
         super().__init__()
         self.dropout = nn.Dropout(p=dropout)
         assert embed_dim % 2 == 0
+
         # Create an array with a "batch dimension" of 1 (which will broadcast
         # across all examples in the batch).
         pe = torch.zeros(1, max_len, embed_dim)
-        ############################################################################
-        # TODO: Construct the positional encoding array as described in            #
-        # Transformer_Captioning.ipynb.  The goal is for each row to alternate     #
-        # sine and cosine, and have exponents of 0, 0, 2, 2, 4, 4, etc. up to      #
-        # embed_dim. Of course this exact specification is somewhat arbitrary, but #
-        # this is what the autograder is expecting. For reference, our solution is #
-        # less than 5 lines of code.                                               #
-        ############################################################################
-        # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-        pass
-
-        # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
-        ############################################################################
-        #                             END OF YOUR CODE                             #
-        ############################################################################
+        # Construct the positional encoding array
+        position = torch.arange(0, max_len, dtype=torch.float).unsqueeze(1)
+        div_term = torch.exp(torch.arange(0, embed_dim, 2, dtype=torch.float) * (-math.log(10000.0) / embed_dim))
+        pe[:, :, 0::2] = torch.sin(position * div_term)
+        pe[:, :, 1::2] = torch.cos(position * div_term)
 
         # Make sure the positional encodings will be saved with the model
         # parameters (mostly for completeness).
@@ -69,8 +60,9 @@ class PositionalEncoding(nn.Module):
         # afterward. This should only take a few lines of code.                    #
         ############################################################################
         # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
-
-        pass
+        pos = self.pe[:, :S, :].repeat(N, 1, 1)
+        output = x + pos
+        output = self.dropout(output)
 
         # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
         ############################################################################
@@ -124,6 +116,11 @@ class MultiHeadAttention(nn.Module):
         self.emd_dim = embed_dim
         self.head_dim = self.emd_dim // self.n_head
 
+    def split_head(self,x,n_heads):
+        d = x.shape[-1]
+        x = torch.concat([tmp.unsqueeze(1) for tmp in torch.split(x,d // n_heads,dim = -1)],dim = 1)
+        return x
+
     def forward(self, query, key, value, attn_mask=None):
         """
         Calculate the masked attention output for the provided data, computing
@@ -165,12 +162,29 @@ class MultiHeadAttention(nn.Module):
         ############################################################################
         # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-        pass
+        q = self.split_head(self.query(query),self.n_head) # [N,H,S,E]
+        k = self.split_head(self.key(key),self.n_head) # [N,H,S,E]
+        v = self.split_head(self.value(value),self.n_head) # [N,H,S,E]
+
+        
+        attn = torch.matmul(q,k.permute(0,1,3,2)) / math.sqrt((E / self.n_head))# [N,H,S,S]
+        if attn_mask is not None:
+           attn_mask = attn_mask[None,None,:,:].repeat(attn.shape[0],attn.shape[1],1,1)
+           attn.masked_fill_(attn_mask == 0,-torch.inf)
+
+        attn_weight = F.softmax(attn,dim = -1)
+      
+        output = self.attn_drop(attn_weight) @ v # [N,H,S,E]
+
+        output = output.permute(0,2,1,3).reshape(N,S,-1)
+
+        output = self.proj(output)
 
         # *****END OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
         ############################################################################
         #                             END OF YOUR CODE                             #
         ############################################################################
         return output
+
 
 
